@@ -1,4 +1,5 @@
 import type { FieldType } from "@prisma/client";
+import { CUSTOMER_TYPES } from "@/lib/field-services/customer-types";
 
 /**
  * Sector-specific custom-field sets (FR 454637a9, user-approved 2026-07-06).
@@ -87,7 +88,7 @@ export const SECTOR_FIELD_TEMPLATES: Record<string, SectorFieldDef[]> = {
     // authoritative on the Job, and every revenue and win-rate report groups by
     // it — a blank would silently drop a job from the numbers. Modelled as a
     // required SELECT rather than a tag convention so it cannot be typo'd.
-    { key: "field-services.type", name: "Type", fieldType: "SELECT", options: ["Residential", "Commercial", "GC"], bindTo: ["job"], required: true },
+    { key: "field-services.type", name: "Type", fieldType: "SELECT", options: [...CUSTOMER_TYPES], bindTo: ["job"], required: true },
     { key: "field-services.po-number", name: "PO number", fieldType: "TEXT", bindTo: ["job"] },
     { key: "field-services.prevailing-wage", name: "Prevailing wage", fieldType: "CHECKBOX", bindTo: ["job"] },
     { key: "field-services.access-notes", name: "Site access notes", fieldType: "TEXT", bindTo: ["job"] },

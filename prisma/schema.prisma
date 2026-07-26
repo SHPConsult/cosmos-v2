@@ -783,6 +783,11 @@ model WorkItem {
   assignees      WorkItemAssignee[]
   watchers       WorkItemWatcher[]
   keyResultLinks KeyResultLink[]
+  // Field services: a Job is a WorkItem. `jobDetail` carries its customer /
+  // contact / site; quotes and invoices hang off it directly.
+  jobDetail      JobDetail?
+  quotes         Quote[]
+  invoices       Invoice[]
 
   @@unique([orgId, projectId, ticketNumber])
   // Idempotent re-import key (prod-parity): one imported record per source per org.
@@ -937,10 +942,19 @@ model CrmContact {
   ownerId      String?  @map("owner_id") @db.Uuid
   notes        String?
   customFields Json     @default("{}") @map("custom_fields")
+  /// The billing entity this person belongs to. Nullable: a contact captured
+  /// during a cold call has no Account yet, and the CRM pipeline predates the
+  /// concept entirely.
+  accountId    String?  @map("account_id") @db.Uuid
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
+  account CrmAccount? @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  jobs    JobDetail[]
+  quotes  Quote[]
+
   @@index([orgId, stage])
+  @@index([orgId, accountId])
   @@map("crm_contacts")
 }
 
@@ -3033,11 +3047,199 @@ model WorkItemAttachment {
 
 // ─── Finance (SCHEMA-ONLY in v2; empty in prod — UI/routes deferred) ───────────
 
+/// The entity that gets billed. Has many Contacts, Sites and Jobs.
+///
+/// Named CrmAccount, not Account: `Account` is already the ledger's chart-of-
+/// accounts model and owns the `accounts` table. This follows the existing
+/// CrmContact precedent. The DOMAIN term is plain "Account" — see CONTEXT.md.
+///
+/// A residential homeowner is an Account with exactly one Contact. There is no
+/// person-shaped customer and no is-this-a-person branch anywhere.
+model CrmAccount {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId            String   @map("org_id") @db.Uuid
+  name             String
+  /// Pre-fills a new Job's Type. One of CUSTOMER_TYPES
+  /// (src/lib/field-services/customer-types.ts) — the Job's own value is
+  /// authoritative, this is only a capture-time convenience.
+  defaultType      String?  @map("default_type")
+  billingEmail     String?  @map("billing_email")
+  billingAddress   String?  @map("billing_address")
+  /// Net terms in days; drives an Invoice's due date.
+  paymentTermsDays Int?     @map("payment_terms_days")
+  notes            String?
+  logoUrl          String?  @map("logo_url")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  contacts CrmContact[]
+  sites    Site[]
+  quotes   Quote[]
+  invoices Invoice[]
+  jobs     JobDetail[]
+
+  @@index([orgId])
+  @@map("crm_accounts")
+}
+
+/// A physical place work happens.
+///
+/// Org-scoped, NOT owned by a customer: the same parking lot survives a change of
+/// GC and keeps its measurements and job history. `accountId` records the owner
+/// when known, and is deliberately nullable and non-identifying.
+model Site {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId     String   @map("org_id") @db.Uuid
+  accountId String?  @map("account_id") @db.Uuid
+  label     String?
+  address   String?
+  lat       Float?
+  lng       Float?
+  /// Measured area — a pricing input, not just reference data (seal coat is
+  /// quoted per square foot).
+  areaSqft  Decimal? @map("area_sqft") @db.Decimal(12, 2)
+  aerialRef String?  @map("aerial_ref")
+  notes     String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  account CrmAccount? @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  jobs    JobDetail[]
+
+  @@index([orgId])
+  @@index([orgId, accountId])
+  @@map("sites")
+}
+
+/// Field-services extension of a WorkItem — the Job's customer, contact and site.
+///
+/// A separate table rather than columns on WorkItem: these are meaningless to the
+/// other seven sectors, and WorkItem is already carrying import-provenance and
+/// SAFe fields. Keyed BY workItemId (1:1), so a Job either has this row or does
+/// not — there is no partial state.
+///
+/// Note there is no approvedQuoteId here. The approved Quote is DERIVED
+/// (kind ESTIMATE, status APPROVED) for the same reason the Work Order is a
+/// projection: a stored pointer is a thing that can go stale.
+model JobDetail {
+  workItemId String   @id @map("work_item_id") @db.Uuid
+  orgId      String   @map("org_id") @db.Uuid
+  accountId  String?  @map("account_id") @db.Uuid
+  contactId  String?  @map("contact_id") @db.Uuid
+  /// Nullable by design: address is captured later, never at Job creation.
+  siteId     String?  @map("site_id") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  workItem WorkItem    @relation(fields: [workItemId], references: [id], onDelete: Cascade)
+  account  CrmAccount? @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  contact  CrmContact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  site     Site?       @relation(fields: [siteId], references: [id], onDelete: SetNull)
+
+  @@index([orgId])
+  @@index([orgId, accountId])
+  @@index([orgId, siteId])
+  @@map("job_details")
+}
+
+enum QuoteKind {
+  ESTIMATE
+  CHANGE_ORDER
+}
+
+enum QuoteStatus {
+  DRAFT
+  SENT
+  APPROVED
+  DECLINED
+  SUPERSEDED
+}
+
+/// A priced offer of work awaiting the customer's decision.
+///
+/// ONE model covers estimates and change orders (`kind`), so they share a
+/// builder, an approval flow, a PDF path and one totals calculation. A Change
+/// Order hangs off its estimate via parentQuoteId and contributes to the Invoice
+/// total only once APPROVED.
+///
+/// Mirrors Invoice deliberately — same Decimal precision, same line-item shape.
+model Quote {
+  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId         String      @map("org_id") @db.Uuid
+  /// Q-YYYY-#### for an estimate; CO-### (sequential per parent) for a change order.
+  number        String
+  kind          QuoteKind   @default(ESTIMATE)
+  status        QuoteStatus @default(DRAFT)
+  /// Set on a CHANGE_ORDER — the estimate it varies.
+  parentQuoteId String?     @map("parent_quote_id") @db.Uuid
+  /// Estimate revisions: v1, v2, v3. A superseded revision keeps its number.
+  revision      Int         @default(1)
+  /// The Job (WorkItem) this quote is for.
+  jobId         String?     @map("job_id") @db.Uuid
+  accountId     String?     @map("account_id") @db.Uuid
+  contactId     String?     @map("contact_id") @db.Uuid
+  title         String?
+  currency      String      @default("USD")
+  subtotal      Decimal     @default(0) @db.Decimal(19, 4)
+  taxTotal      Decimal     @default(0) @map("tax_total") @db.Decimal(19, 4)
+  total         Decimal     @default(0) @db.Decimal(19, 4)
+  issuedAt      DateTime?   @map("issued_at")
+  decidedAt     DateTime?   @map("decided_at")
+  /// Captured when a customer declines — the reason is the whole point of asking.
+  declineReason String?     @map("decline_reason")
+  terms         String?
+  notes         String?
+  createdById   String      @map("created_by_id") @db.Uuid
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+
+  lineItems     QuoteLineItem[]
+  parentQuote   Quote?          @relation("QuoteVariations", fields: [parentQuoteId], references: [id])
+  changeOrders  Quote[]         @relation("QuoteVariations")
+  job           WorkItem?       @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  account       CrmAccount?     @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  contact       CrmContact?     @relation(fields: [contactId], references: [id], onDelete: SetNull)
+
+  @@unique([orgId, number])
+  @@index([orgId, status])
+  @@index([orgId, jobId])
+  @@index([parentQuoteId])
+  @@map("quotes")
+}
+
+model QuoteLineItem {
+  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  quoteId     String  @map("quote_id") @db.Uuid
+  /// Free text on the customer-facing document.
+  description String
+  /// The trade service — Seal Coat, Striping, Crack Fill. Carried onto the Work
+  /// Order, which shows scope without prices.
+  serviceType String? @map("service_type")
+  quantity    Decimal @default(1) @db.Decimal(19, 4)
+  unit        String?
+  unitPrice   Decimal @map("unit_price") @db.Decimal(19, 4)
+  taxRate     Decimal @default(0) @map("tax_rate") @db.Decimal(9, 6)
+  amount      Decimal @db.Decimal(19, 4)
+  productId   String? @map("product_id") @db.Uuid
+  sortOrder   Int     @default(0) @map("sort_order")
+
+  quote Quote @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+
+  @@index([quoteId])
+  @@map("quote_line_items")
+}
+
 model Invoice {
   id          String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   orgId       String        @map("org_id") @db.Uuid
   number      String
   contactId   String?       @map("contact_id") @db.Uuid
+  /// Field services: the billed Account and the Job this invoice settles.
+  /// A partial unique index on (job_id) WHERE status <> 'VOID' is the
+  /// idempotency guarantee for the Completed → draft-invoice transition hook;
+  /// it is created in SQL because Prisma cannot express a partial index.
+  accountId   String?       @map("account_id") @db.Uuid
+  jobId       String?       @map("job_id") @db.Uuid
   contractId  String?       @map("contract_id") @db.Uuid
   billToName  String        @map("bill_to_name")
   billToEmail String?       @map("bill_to_email")
@@ -3057,9 +3259,12 @@ model Invoice {
 
   lineItems InvoiceLineItem[]
   payments  Payment[]
+  account   CrmAccount? @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  job       WorkItem?   @relation(fields: [jobId], references: [id], onDelete: SetNull)
 
   @@unique([orgId, number])
   @@index([orgId, status])
+  @@index([orgId, jobId])
   @@map("invoices")
 }
 
