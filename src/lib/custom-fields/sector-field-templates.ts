@@ -28,6 +28,10 @@ export interface SectorFieldDef {
   bindTo?: string[];
   /** Resolve options from the org's classification levels at seed time. */
   optionsFromClassifications?: boolean;
+  /** Seed the field as required. Defaults to false — sector sets are curated
+   *  suggestions, not gates. Set only for a closed dimension the sector's
+   *  reporting depends on. */
+  required?: boolean;
 }
 
 export const SECTOR_FIELD_TEMPLATES: Record<string, SectorFieldDef[]> = {
@@ -76,6 +80,18 @@ export const SECTOR_FIELD_TEMPLATES: Record<string, SectorFieldDef[]> = {
     { key: "event.budget-line", name: "Budget line", fieldType: "NUMBER" },
     { key: "event.attendee-impact", name: "Attendee impact", fieldType: "SELECT", options: ["all", "vip", "staff"] },
     { key: "event.contract-signed", name: "Contract signed", fieldType: "CHECKBOX" },
+  ],
+  "field-services": [
+    // Type is the one REQUIRED field in any sector set. It is closed
+    // (Residential/Commercial/GC), pre-filled from the Account at capture but
+    // authoritative on the Job, and every revenue and win-rate report groups by
+    // it — a blank would silently drop a job from the numbers. Modelled as a
+    // required SELECT rather than a tag convention so it cannot be typo'd.
+    { key: "field-services.type", name: "Type", fieldType: "SELECT", options: ["Residential", "Commercial", "GC"], bindTo: ["job"], required: true },
+    { key: "field-services.po-number", name: "PO number", fieldType: "TEXT", bindTo: ["job"] },
+    { key: "field-services.prevailing-wage", name: "Prevailing wage", fieldType: "CHECKBOX", bindTo: ["job"] },
+    { key: "field-services.access-notes", name: "Site access notes", fieldType: "TEXT", bindTo: ["job"] },
+    { key: "field-services.time-of-day", name: "Time of day", fieldType: "SELECT", options: ["AM", "PM", "Night"], bindTo: ["job"] },
   ],
   manufacturing: [
     { key: "manufacturing.work-center", name: "Work center", fieldType: "SELECT", options: [] },

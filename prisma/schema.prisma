@@ -91,6 +91,9 @@ enum IntervalKind {
   EVENT_DAY
   RELEASE
   ITERATION
+  // A trade contractor's working season (paving, snow). The natural planning
+  // timebox for field services — work and contracts are scoped to it.
+  SEASON
   // A Program Increment (SAFe "Planning Interval") — a larger timebox that
   // CONTAINS sprints. A PI interval is the `parent` of its sprint intervals.
   PROGRAM_INCREMENT
@@ -696,6 +699,12 @@ model BoardColumn {
   wipLimit  Int?           @map("wip_limit")
   sortOrder Int            @default(0) @map("sort_order")
   category  ColumnCategory @default(TODO)
+  // System-owned column: renaming, re-keying or deleting it is rejected
+  // server-side. Set by sector seeds whose automation and reporting key off the
+  // column KEY (field-services: a Job entering `completed` mints a draft
+  // invoice). Without this a user editing their board silently breaks billing.
+  // Additive and default-false, so every existing board is unaffected.
+  locked    Boolean        @default(false)
 
   board Board @relation(fields: [boardId], references: [id], onDelete: Cascade)
 

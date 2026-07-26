@@ -1,6 +1,6 @@
 import type { ModuleKey, SectorKey } from "@/lib/entitlements/modules";
 
-export type ProductKey = "cosmos" | "pontis";
+export type ProductKey = "cosmos" | "pontis" | "jetseal";
 
 export type ProductProfile = {
   key: ProductKey;
@@ -82,5 +82,29 @@ export const PRODUCT_PROFILES: Record<ProductKey, ProductProfile> = {
     defaultEnabledSectors: ["aec"],
     defaultSkinId: "atelier",
     defaultEnabledPlugins: ["pontis"],
+  },
+  jetseal: {
+    key: "jetseal",
+    name: "Jet Seal",
+    title: "Jet Seal — field operations, quote to cash",
+    description:
+      "One place to run a trade contractor — jobs, quotes, crews, and invoicing, from the first call to the paid invoice.",
+    tagline: "Field Services",
+    markSrc: "/jetseal-mark.png",
+    // JSS Black / JSS Green — the closed brand palette (see the `jss` skin).
+    themeColor: "#1a1a1a",
+    backgroundColor: "#1a1a1a",
+    agentName: "Jet Seal Agent",
+    wakePhrase: "hey jet seal",
+    wakeWord: "Hey Jet Seal",
+    defaultTenantClass: "COMMERCIAL",
+    signingMode: "keyless",
+    defaultEnabledModules: null,
+    defaultEnabledSectors: ["field-services"],
+    defaultSkinId: "jss",
+    // Snow is a plugin (ADR 0003) and lands in Phase 5. Listing a slug whose
+    // plugin isn't composed into the build is ignored at provision time, so this
+    // is safe ahead of that work.
+    defaultEnabledPlugins: ["snow"],
   },
 };

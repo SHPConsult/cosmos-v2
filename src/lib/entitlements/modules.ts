@@ -17,6 +17,7 @@ export const MODULES = [
   { key: "crm", label: "CRM" },
   { key: "accounting", label: "Accounting" },
   { key: "analytics", label: "Analytics" },
+  { key: "field-ops", label: "Field Ops" },
 ] as const;
 
 export type ModuleKey = (typeof MODULES)[number]["key"];
@@ -36,5 +37,6 @@ export const SECTORS = [
   "manufacturing",
   "education",
   "event",
+  "field-services",
 ] as const;
 export type SectorKey = (typeof SECTORS)[number];

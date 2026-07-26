@@ -7,7 +7,7 @@ import {
 } from "./modules";
 
 describe("module registry", () => {
-  it("exposes the six gateable top-level modules (matching nav ids)", () => {
+  it("exposes the seven gateable top-level modules (matching nav ids)", () => {
     expect(ALL_MODULE_KEYS).toEqual([
       "projects",
       "issues",
@@ -15,6 +15,7 @@ describe("module registry", () => {
       "crm",
       "accounting",
       "analytics",
+      "field-ops",
     ]);
   });
 

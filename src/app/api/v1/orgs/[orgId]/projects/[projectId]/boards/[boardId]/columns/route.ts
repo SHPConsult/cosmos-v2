@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db/client";
 import { getAuthContext } from "@/lib/auth/session";
 import { Permission, hasPermission } from "@/lib/rbac/permissions";
 import { canManageProject } from "@/lib/rbac/scope";
+import { ConflictError } from "@/lib/rbac/check";
 import { success, handleApiError, getIpAddress } from "@/lib/api-helpers";
 import { logAudit } from "@/lib/audit";
 import { z } from "zod";
@@ -47,12 +48,45 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     const { columns } = reorderSchema.parse(body);
 
     const result = await prisma.$transaction(async (tx) => {
-      const existingIds = (
-        await tx.boardColumn.findMany({ where: { boardId }, select: { id: true } })
-      ).map((c) => c.id);
+      const existing = await tx.boardColumn.findMany({
+        where: { boardId },
+        select: { id: true, name: true, key: true, category: true, locked: true },
+      });
+      const existingIds = existing.map((c) => c.id);
+
+      // System-owned columns are the contract a sector's automation and reporting
+      // read (field-services: a Job entering `completed` mints a draft invoice).
+      // Deleting or re-keying one silently breaks billing, so reject rather than
+      // letting the board editor do it. Cosmetics — color, WIP limit, ordering —
+      // stay editable; identity and semantics do not.
+      const lockedById = new Map(existing.filter((c) => c.locked).map((c) => [c.id, c]));
 
       const incomingIds = columns.filter((c) => c.id).map((c) => c.id!);
       const toDelete = existingIds.filter((id) => !incomingIds.includes(id));
+
+      const deletingLocked = toDelete.filter((id) => lockedById.has(id));
+      if (deletingLocked.length > 0) {
+        const names = deletingLocked.map((id) => lockedById.get(id)!.name).join(", ");
+        throw new ConflictError(`Cannot delete system-owned column(s): ${names}`);
+      }
+
+      for (const col of columns) {
+        const locked = col.id ? lockedById.get(col.id) : undefined;
+        if (!locked) continue;
+        if (col.key !== locked.key) {
+          throw new ConflictError(
+            `Cannot change the key of system-owned column "${locked.name}"`,
+          );
+        }
+        if (col.name !== locked.name) {
+          throw new ConflictError(`Cannot rename system-owned column "${locked.name}"`);
+        }
+        if (col.category !== undefined && col.category !== locked.category) {
+          throw new ConflictError(
+            `Cannot change the category of system-owned column "${locked.name}"`,
+          );
+        }
+      }
 
       if (toDelete.length > 0) {
         await tx.boardColumn.deleteMany({ where: { id: { in: toDelete } } });

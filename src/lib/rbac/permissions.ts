@@ -134,6 +134,25 @@ export const Permission = {
   // surfaces and runs provisioning hooks — scope-able to a WorkRole without handing
   // over all org settings.
   PLUGIN_MANAGE: 1n << 117n,
+
+  // Field services (ADR 0004-0008) — the quote-to-cash + field-operations
+  // vertical. ACCOUNT/SITE are core CRM-adjacent records; QUOTE covers estimates
+  // AND change orders (one model, `kind`-discriminated); FIELD_OPS gates the
+  // crew-facing surface (photos, materials, job timers).
+  //
+  // QUOTE_READ is the price-visibility bit for sold work: a crew member must
+  // NEVER hold it. Crew are provisioned on a base role that lacks it and widened
+  // by a Crew WorkRole granting only FIELD_OPS_* — grants widen, so a bit the
+  // base role never had cannot be reached.
+  ACCOUNT_READ:    1n << 118n,
+  ACCOUNT_MANAGE:  1n << 119n,
+  SITE_READ:       1n << 120n,
+  SITE_MANAGE:     1n << 121n,
+  QUOTE_READ:      1n << 122n,
+  QUOTE_MANAGE:    1n << 123n,
+  QUOTE_APPROVE:   1n << 124n,
+  FIELD_OPS_READ:  1n << 125n,
+  FIELD_OPS_LOG:   1n << 126n,
 } as const;
 
 export type PermissionKey = keyof typeof Permission;
@@ -248,6 +267,15 @@ export const RolePermissions = {
     Permission.MCP_MANAGE,
     Permission.AGENT_POLICY_MANAGE,
     Permission.PLUGIN_MANAGE,
+    Permission.ACCOUNT_READ,
+    Permission.ACCOUNT_MANAGE,
+    Permission.SITE_READ,
+    Permission.SITE_MANAGE,
+    Permission.QUOTE_READ,
+    Permission.QUOTE_MANAGE,
+    Permission.QUOTE_APPROVE,
+    Permission.FIELD_OPS_READ,
+    Permission.FIELD_OPS_LOG,
   ),
 
   BILLING_ADMIN: combine(
@@ -296,6 +324,16 @@ export const RolePermissions = {
     Permission.CHAT_USE,
     Permission.ANALYTICS_READ,
     Permission.REPORT_CREATE,
+    // Field services: office staff manage customers, sites and quotes. Approval
+    // stays with ADMIN/OWNER, and FIELD_OPS_LOG is granted by the Crew WorkRole
+    // rather than the base role.
+    Permission.ACCOUNT_READ,
+    Permission.ACCOUNT_MANAGE,
+    Permission.SITE_READ,
+    Permission.SITE_MANAGE,
+    Permission.QUOTE_READ,
+    Permission.QUOTE_MANAGE,
+    Permission.FIELD_OPS_READ,
   ),
 
   VIEWER: combine(
@@ -316,6 +354,10 @@ export const RolePermissions = {
     Permission.COMPLIANCE_READ,
     Permission.CLASSIFICATION_READ,
     Permission.ANALYTICS_READ,
+    Permission.ACCOUNT_READ,
+    Permission.SITE_READ,
+    Permission.QUOTE_READ,
+    Permission.FIELD_OPS_READ,
   ),
 
   GUEST: combine(

@@ -82,7 +82,12 @@ export async function seedSectorFields(
         key: def.key,
         fieldType: def.fieldType,
         options: options as Prisma.InputJsonValue,
-        required: false,
+        // Sector field sets are OPTIONAL by default (a curated suggestion, not a
+        // gate). A sector may opt a field in to `required: true` when it is a
+        // closed, load-bearing dimension rather than a nicety — field-services
+        // Type (Residential/Commercial/GC) is the first, because every revenue
+        // report keys off it and a blank silently drops a job from the numbers.
+        required: def.required ?? false,
         sortOrder: sortOrder++,
         typeBindings: {
           create: boundTypes.map((t) => ({ workItemTypeId: t.id })),

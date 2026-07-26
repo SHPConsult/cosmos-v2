@@ -4,7 +4,7 @@ import { SKIN_PRESETS, DEFAULT_SKIN_ID, getSkinPreset, allSkinsCss } from "./ski
 describe("skin registry", () => {
   it("ships all presets with unique ids and both modes", () => {
     const ids = SKIN_PRESETS.map((p) => p.id);
-    expect(ids).toEqual(["universe", "atelier", "field", "ledger", "clinical", "studio"]);
+    expect(ids).toEqual(["universe", "atelier", "field", "jss", "ledger", "clinical", "studio"]);
     expect(new Set(ids).size).toBe(ids.length);
     for (const p of SKIN_PRESETS) {
       expect(p.light["--bg"]).toBeTruthy();
@@ -17,6 +17,20 @@ describe("skin registry", () => {
     expect(getSkinPreset(DEFAULT_SKIN_ID).id).toBe(DEFAULT_SKIN_ID);
     expect(getSkinPreset("nope").id).toBe(DEFAULT_SKIN_ID);
   });
+  it("jss uses only the closed JSS palette — green primary on black", () => {
+    const j = getSkinPreset("jss");
+    // The customer's brand rule is closed: JSS Green + JSS Black only. These
+    // match the trucks, uniforms and signage, so a drifting primary is a real
+    // defect, not a taste question.
+    expect(j.light["--primary"]).toBe("#74bc44");
+    expect(j.dark["--bg"]).toBe("#1a1a1a");
+    expect(j.light["--text"]).toBe("#1a1a1a");
+    // #74bc44 is light enough that white-on-green fails contrast (~2.3:1);
+    // JSS Black on it clears AA (~8.5:1). Guard against a "fix" to white.
+    expect(j.light["--primary-foreground"]).toBe("#1a1a1a");
+    expect(j.dark["--primary-foreground"]).toBe("#1a1a1a");
+  });
+
   it("atelier is the pearl/midnight look with the laser accent + grid", () => {
     const a = getSkinPreset("atelier");
     expect(a.light["--bg"]).toBe("#f9f7f4");

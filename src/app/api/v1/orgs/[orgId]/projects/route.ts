@@ -146,7 +146,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         for (const bt of template.boardTemplates) {
           const boardCfg = bt.defaultConfig as Record<string, unknown> | null;
           const columns = (boardCfg && Array.isArray(boardCfg.columns))
-            ? (boardCfg.columns as Array<{ name: string; key: string; color?: string; sortOrder?: number; category?: string }>)
+            ? (boardCfg.columns as Array<{ name: string; key: string; color?: string; sortOrder?: number; category?: string; locked?: boolean }>)
             : null;
 
           const board = await tx.board.create({
@@ -168,6 +168,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
                 color: col.color ?? "#7dd3fc",
                 sortOrder: col.sortOrder ?? idx,
                 category: (col.category as import("@prisma/client").ColumnCategory) ?? "TODO",
+                // Carried from the board template so a sector can ship a
+                // system-owned status bar (field-services). Without this the
+                // flag would never reach a real column and the guard in the
+                // columns PUT would be inert.
+                locked: col.locked ?? false,
               })),
             });
           } else {

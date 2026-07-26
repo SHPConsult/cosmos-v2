@@ -7,6 +7,7 @@ import { seedConsulting } from "./sectors/consulting";
 import { seedManufacturing } from "./sectors/manufacturing";
 import { seedEducation } from "./sectors/education";
 import { seedEvent } from "./sectors/event";
+import { seedFieldServices } from "./sectors/field-services";
 import { migrateLegacyData } from "./migrate-legacy";
 
 const prisma = makePrismaClient();
@@ -37,6 +38,9 @@ async function main() {
 
   console.log("Event sector:");
   await seedEvent(prisma);
+
+  console.log("Field services sector:");
+  await seedFieldServices(prisma);
 
   console.log("\nMigrating legacy data...");
   await migrateLegacyData(prisma);

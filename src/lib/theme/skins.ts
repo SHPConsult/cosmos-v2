@@ -120,6 +120,42 @@ const FIELD: SkinPreset = {
 :root.skin-field ::selection { background: rgb(234 88 12 / 0.20); }`,
 };
 
+// Jet Seal Services house brand. The customer's brand rule is explicit and
+// closed: JSS Green #74BC44 and JSS Black #1A1A1A only — these match the trucks,
+// uniforms and signage, and no other primary may be introduced. `field` is the
+// generic field-services look (safety amber); this is the JSS face of it.
+// primary-foreground is JSS Black, not white: #74BC44 is light enough that white
+// text on it fails contrast (~2.3:1) while black clears AA comfortably (~8.5:1).
+const JSS: SkinPreset = {
+  id: "jss",
+  label: "Jet Seal",
+  description: "Jet Seal house brand — seal-coat black, high-visibility green.",
+  sectors: ["field-services", "field", "construction"],
+  systemFollowsOs: true,
+  light: {
+    "color-scheme": "light",
+    "--bg": "#f5f6f4", "--surface": "#e9ebe7", "--overlay": "#fcfdfb",
+    "--border": "#cdd1c8", "--text": "#1a1a1a", "--text-muted": "#5a5f58",
+    "--primary": "#74bc44", "--primary-hover": "#5f9e35",
+    "--primary-tint": "rgb(116 188 68 / 0.12)", "--primary-foreground": "#1a1a1a",
+    "--radius-sm": "3px", "--radius": "4px", "--radius-md": "4px", "--radius-lg": "6px",
+    "--sidebar-gradient": "linear-gradient(180deg, #f5f6f4 0%, #e9ebe7 100%)",
+  },
+  dark: {
+    "color-scheme": "dark",
+    "--bg": "#1a1a1a", "--surface": "#232522", "--overlay": "#2c2f2a",
+    "--border": "#383b35", "--text": "#e9ebe7", "--text-muted": "#9aa096",
+    "--primary": "#84cc50", "--primary-hover": "#74bc44",
+    "--primary-tint": "rgb(132 204 80 / 0.14)", "--primary-foreground": "#1a1a1a",
+    "--radius-sm": "3px", "--radius": "4px", "--radius-md": "4px", "--radius-lg": "6px",
+    "--sidebar-gradient": "linear-gradient(180deg, #232522 0%, #1a1a1a 100%)",
+  },
+  extras: `:root.skin-jss { --font-sans: var(--font-field); }
+:root.skin-jss.skin-jss body::before { background-image: none; background-color: var(--bg); }
+:root.skin-jss.skin-jss body::after { content: none; }
+:root.skin-jss ::selection { background: rgb(116 188 68 / 0.22); }`,
+};
+
 const LEDGER: SkinPreset = {
   id: "ledger",
   label: "Ledger",
@@ -213,7 +249,7 @@ const STUDIO: SkinPreset = {
 :root.skin-studio ::selection { background: rgb(124 58 237 / 0.22); }`,
 };
 
-export const SKIN_PRESETS: SkinPreset[] = [UNIVERSE, ATELIER, FIELD, LEDGER, CLINICAL, STUDIO];
+export const SKIN_PRESETS: SkinPreset[] = [UNIVERSE, ATELIER, FIELD, JSS, LEDGER, CLINICAL, STUDIO];
 export const DEFAULT_SKIN_ID: SkinId = "universe";
 
 export function getSkinPreset(id: string | null | undefined): SkinPreset {

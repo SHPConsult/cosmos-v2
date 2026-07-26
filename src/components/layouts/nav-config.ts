@@ -16,6 +16,7 @@ import {
   Wallet,
   Percent,
   BookOpen,
+  HardHat,
   type LucideIcon,
 } from "lucide-react";
 import { Permission } from "@/lib/rbac/permissions";
@@ -212,6 +213,14 @@ export const SIDEBAR_NAV: NavEntry[] = [
     label: "Analytics",
     href: "/analytics",
     anyOf: [Permission.ANALYTICS_READ],
+  },
+  {
+    type: "leaf",
+    id: "field-ops",
+    icon: HardHat,
+    label: "Field Ops",
+    href: "/field-ops",
+    anyOf: [Permission.FIELD_OPS_READ],
   },
   {
     type: "leaf",

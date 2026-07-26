@@ -3,10 +3,22 @@ import { SECTOR_FIELD_TEMPLATES, SECTOR_FIELD_SECTORS } from "./sector-field-tem
 
 /** Catalog invariants (FR 454637a9) — the seeding logic depends on these. */
 describe("SECTOR_FIELD_TEMPLATES", () => {
-  it("covers the 7 template sectors + govcon", () => {
+  it("covers the 8 template sectors + govcon", () => {
     expect(new Set(SECTOR_FIELD_SECTORS)).toEqual(
-      new Set(["software", "govcon", "aec", "consulting", "education", "event", "manufacturing", "ops"]),
+      new Set(["software", "govcon", "aec", "consulting", "education", "event", "manufacturing", "ops", "field-services"]),
     );
+  });
+
+  it("only field-services.type is seeded required (closed reporting dimension)", () => {
+    const required = Object.values(SECTOR_FIELD_TEMPLATES)
+      .flat()
+      .filter((d) => d.required);
+    expect(required.map((d) => d.key)).toEqual(["field-services.type"]);
+    // A required field MUST be bound to specific types — an unbound field shows
+    // on every item, so seeding it required would block editing unrelated work.
+    for (const def of required) {
+      expect(def.bindTo?.length, `${def.key} must declare bindTo`).toBeGreaterThan(0);
+    }
   });
 
   it("every key is namespaced under its own sector (org-unique keyspace)", () => {
