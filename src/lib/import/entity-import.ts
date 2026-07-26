@@ -262,9 +262,56 @@ async function loadExistingIds(
       });
       return toMap(rows, (r) => ({ agmtNumber: r.agmtNumber, title: r.title }));
     }
+    // Field services: ORG-scoped, so projectId is deliberately not in the where.
+    case "account": {
+      const rows = await prisma.crmAccount.findMany({ where: { orgId }, select: { id: true, name: true } });
+      return toMap(rows, (r) => ({ name: r.name }));
+    }
+    case "contact": {
+      // A person's name is only unique WITHIN an account — two "Mike Chen"s at
+      // different GCs are different people — so the token spans both. Built
+      // directly rather than via toMap, whose row type can't carry the nested
+      // account select.
+      const rows = await prisma.crmContact.findMany({
+        where: { orgId },
+        select: { id: true, name: true, account: { select: { name: true } } },
+      });
+      return new Map(
+        rows.map(
+          (r) =>
+            [
+              tokenize({ name: r.name, accountName: r.account?.name ?? null }),
+              r.id,
+            ] as const,
+        ),
+      );
+    }
+    case "site": {
+      const rows = await prisma.site.findMany({ where: { orgId }, select: { id: true, address: true } });
+      return toMap(rows, (r) => ({ address: r.address }));
+    }
     default:
       return new Map();
   }
+}
+
+/**
+ * Resolve an Account by name for contact/site import.
+ *
+ * Returns null when the name is blank OR unknown — deliberately NOT creating one.
+ * A typo in a spreadsheet would otherwise mint a duplicate customer that then
+ * receives invoices, which is far worse than an unlinked row someone can fix.
+ */
+async function findAccountIdByName(
+  orgId: string,
+  name: string | null,
+): Promise<string | null> {
+  if (!name?.trim()) return null;
+  const found = await prisma.crmAccount.findFirst({
+    where: { orgId, name: { equals: name.trim(), mode: "insensitive" } },
+    select: { id: true },
+  });
+  return found?.id ?? null;
 }
 
 /**
@@ -503,6 +550,51 @@ async function createEntityRow(
       });
       return;
     }
+    // Field services — ORG-scoped: projectId is intentionally unused.
+    case "account": {
+      await prisma.crmAccount.create({
+        data: {
+          orgId,
+          name: s(fields, "name")!,
+          defaultType: s(fields, "defaultType"),
+          billingEmail: s(fields, "billingEmail"),
+          billingAddress: s(fields, "billingAddress"),
+          paymentTermsDays: n(fields, "paymentTermsDays") ?? undefined,
+          notes: s(fields, "notes"),
+        },
+      });
+      return;
+    }
+    case "contact": {
+      await prisma.crmContact.create({
+        data: {
+          orgId,
+          name: s(fields, "name")!,
+          accountId: await findAccountIdByName(orgId, s(fields, "accountName")),
+          email: s(fields, "email"),
+          phone: s(fields, "phone"),
+          title: s(fields, "title"),
+          notes: s(fields, "notes"),
+        },
+      });
+      return;
+    }
+    case "site": {
+      await prisma.site.create({
+        data: {
+          orgId,
+          address: s(fields, "address")!,
+          label: s(fields, "label"),
+          accountId: await findAccountIdByName(orgId, s(fields, "accountName")),
+          lat: n(fields, "lat"),
+          lng: n(fields, "lng"),
+          areaSqft: numericOrUndefined(n(fields, "areaSqft")),
+          aerialRef: s(fields, "aerialRef"),
+          notes: s(fields, "notes"),
+        },
+      });
+      return;
+    }
     default:
       throw new Error(`Unsupported entity: ${def.key}`);
   }
@@ -658,6 +750,42 @@ async function updateEntityRow(
         data.partnerId = partnerId;
       }
       if (Object.keys(data).length) await prisma.contract.update({ where: { id }, data });
+      return;
+    }
+    // Field services. A blank cell never clobbers (that is `patch`'s contract),
+    // so re-importing one new column backfills only that column.
+    case "account": {
+      const data = patch(fields, [
+        ["name", "name"], ["defaultType", "defaultType"], ["billingEmail", "billingEmail"],
+        ["billingAddress", "billingAddress"], ["paymentTermsDays", "paymentTermsDays"],
+        ["notes", "notes"],
+      ]);
+      if (Object.keys(data).length) await prisma.crmAccount.update({ where: { id }, data });
+      return;
+    }
+    case "contact": {
+      const data = patch(fields, [
+        ["name", "name"], ["email", "email"], ["phone", "phone"],
+        ["title", "title"], ["notes", "notes"],
+      ]);
+      // accountName is a NAME, not a column — re-link only when it resolves, so
+      // an unknown or misspelt account never unlinks an already-correct contact.
+      const accountId = await findAccountIdByName(orgId, s(fields, "accountName"));
+      if (accountId) Object.assign(data, { accountId });
+      if (Object.keys(data).length) await prisma.crmContact.update({ where: { id }, data });
+      return;
+    }
+    case "site": {
+      const data = patch(fields, [
+        ["address", "address"], ["label", "label"], ["lat", "lat"], ["lng", "lng"],
+        ["aerialRef", "aerialRef"], ["notes", "notes"],
+      ]);
+      if (fields.areaSqft != null) {
+        Object.assign(data, { areaSqft: numericOrUndefined(n(fields, "areaSqft")) });
+      }
+      const accountId = await findAccountIdByName(orgId, s(fields, "accountName"));
+      if (accountId) Object.assign(data, { accountId });
+      if (Object.keys(data).length) await prisma.site.update({ where: { id }, data });
       return;
     }
     default:

@@ -4,6 +4,11 @@ import { ConflictError, NotFoundError } from "@/lib/rbac/check";
 import { safeAutoPost } from "@/lib/ledger/auto-post";
 import { invoiceTotals, lineAmount, statusFor, type InvoiceStatusValue } from "./totals";
 import {
+  formatSequence,
+  invoicePrefix,
+  nextSequenceNumber,
+} from "@/lib/numbering/sequence";
+import {
   postInvoiceToLedger,
   postPaymentToLedger,
   reverseInvoiceLedger,
@@ -56,17 +61,29 @@ function isUniqueViolation(e: unknown): boolean {
   return e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002";
 }
 
-/** INV-<year>-#### — sequence = (count for the org+year) + 1, minted inside the tx. */
+/**
+ * INV-<year>-#### — sequence = highest existing suffix + 1, minted inside the tx.
+ *
+ * Was `count(...) + 1`, which is wrong whenever the sequence has a GAP: a deleted
+ * row, or hand-keyed historical numbers at cutover, make the count smaller than
+ * the highest number, so the next mint collides with one already issued. The
+ * retry below then burns its attempts re-minting the same colliding value.
+ */
 async function mintInvoiceNumber(
   tx: Prisma.TransactionClient,
   orgId: string,
   year: number,
 ): Promise<string> {
-  const prefix = `INV-${year}-`;
-  const count = await tx.invoice.count({
+  const prefix = invoicePrefix(year);
+  const existing = await tx.invoice.findMany({
     where: { orgId, number: { startsWith: prefix } },
+    select: { number: true },
   });
-  return `${prefix}${String(count + 1).padStart(4, "0")}`;
+  const seq = nextSequenceNumber(
+    existing.map((r) => r.number),
+    prefix,
+  );
+  return formatSequence(prefix, seq);
 }
 
 async function assertContactInOrg(orgId: string, contactId: string) {

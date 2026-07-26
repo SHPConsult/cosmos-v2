@@ -3200,7 +3200,10 @@ model Quote {
   account       CrmAccount?     @relation(fields: [accountId], references: [id], onDelete: SetNull)
   contact       CrmContact?     @relation(fields: [contactId], references: [id], onDelete: SetNull)
 
-  @@unique([orgId, number])
+  /// Revisions SHARE a number and differ by `revision`, so the customer keeps
+  /// quoting "Q-2026-0042" across v1/v2/v3 while each revision stays its own row
+  /// with its own line items and audit trail.
+  @@unique([orgId, number, revision])
   @@index([orgId, status])
   @@index([orgId, jobId])
   @@index([parentQuoteId])

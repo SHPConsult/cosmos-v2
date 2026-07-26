@@ -17,6 +17,8 @@
  */
 
 /** Sentinel mapping value meaning "don't import this column". */
+import { CUSTOMER_TYPES } from "@/lib/field-services/customer-types";
+
 export const IGNORE = "__ignore__";
 
 /** Scalar kinds the coercer understands. */
@@ -278,6 +280,60 @@ export const ENTITY_DEFS: EntityDef[] = [
       { key: "status", label: "Status", kind: "text", synonyms: ["status", "state"] },
       { key: "startDate", label: "Start date", kind: "date", synonyms: ["start date", "start", "pop start", "begin"] },
       { key: "endDate", label: "End date", kind: "date", synonyms: ["end date", "end", "pop end", "finish"] },
+    ],
+  },
+  // ── Field services (ADR 0004) ────────────────────────────────────────────
+  // These three are ORG-scoped, not project-scoped like everything above — the
+  // engine's ctx.projectId is simply unused for them. They exist so a contractor's
+  // reference data lands by CSV at cutover instead of being re-keyed by hand.
+  {
+    key: "account",
+    label: "Accounts",
+    icon: "Building2",
+    blurb: "Billing entities — the companies and homeowners you invoice.",
+    naturalKey: ["name"],
+    fields: [
+      { key: "name", label: "Account name", required: true, kind: "text", synonyms: ["name", "account", "company", "customer", "client", "bill to", "billing company"] },
+      { key: "defaultType", label: "Type", kind: "enum", enum: [...CUSTOMER_TYPES], synonyms: ["type", "category", "account type", "customer type", "segment"] },
+      { key: "billingEmail", label: "Billing email", kind: "text", synonyms: ["billing email", "email", "invoice email", "ap email", "accounts payable"] },
+      { key: "billingAddress", label: "Billing address", kind: "text", synonyms: ["billing address", "address", "bill to address", "mailing address"] },
+      { key: "paymentTermsDays", label: "Payment terms (days)", kind: "int", synonyms: ["payment terms", "terms", "net", "net days", "due days"] },
+      { key: "notes", label: "Notes", kind: "text", synonyms: notes.synonyms },
+    ],
+  },
+  {
+    key: "contact",
+    label: "Contacts",
+    icon: "Users",
+    blurb: "People at your accounts — PMs, facilities managers, homeowners.",
+    naturalKey: ["name", "accountName"],
+    fields: [
+      { key: "name", label: "Name", required: true, kind: "text", synonyms: ["name", "contact", "contact name", "full name", "pm"] },
+      // Matched to an existing Account by name. An unknown name is left unlinked
+      // rather than silently inventing an Account — a typo would otherwise create
+      // a duplicate customer that then receives invoices.
+      { key: "accountName", label: "Account", kind: "text", synonyms: ["account", "company", "customer", "client", "billing company", "employer"] },
+      { key: "email", label: "Email", kind: "text", synonyms: ["email", "e-mail", "email address"] },
+      { key: "phone", label: "Phone", kind: "text", synonyms: ["phone", "telephone", "mobile", "cell", "phone number"] },
+      { key: "title", label: "Title", kind: "text", synonyms: ["title", "role", "job title", "position"] },
+      { key: "notes", label: "Notes", kind: "text", synonyms: notes.synonyms },
+    ],
+  },
+  {
+    key: "site",
+    label: "Sites",
+    icon: "MapPin",
+    blurb: "Physical places you work — address, area, and who owns them.",
+    naturalKey: ["address"],
+    fields: [
+      { key: "address", label: "Address", required: true, kind: "text", synonyms: ["address", "site address", "location", "street", "property", "job site"] },
+      { key: "label", label: "Site name", kind: "text", synonyms: ["name", "label", "site name", "property name", "site"] },
+      { key: "accountName", label: "Account", kind: "text", synonyms: ["account", "company", "customer", "client", "owner"] },
+      { key: "lat", label: "Latitude", kind: "number", synonyms: ["lat", "latitude"] },
+      { key: "lng", label: "Longitude", kind: "number", synonyms: ["lng", "lon", "long", "longitude"] },
+      { key: "areaSqft", label: "Area (sq ft)", kind: "number", synonyms: ["area", "sqft", "sq ft", "square feet", "lot size", "lot sqft", "size"] },
+      { key: "aerialRef", label: "Aerial reference", kind: "text", synonyms: ["aerial", "aerial ref", "imagery", "map ref"] },
+      { key: "notes", label: "Notes", kind: "text", synonyms: notes.synonyms },
     ],
   },
 ];
