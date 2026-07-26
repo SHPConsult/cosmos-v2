@@ -1,6 +1,6 @@
 import type { ModuleKey, SectorKey } from "@/lib/entitlements/modules";
 
-export type ProductKey = "cosmos" | "pontis" | "jetseal";
+export type ProductKey = "cosmos" | "pontis" | "fieldservices";
 
 export type ProductProfile = {
   key: ProductKey;
@@ -83,28 +83,32 @@ export const PRODUCT_PROFILES: Record<ProductKey, ProductProfile> = {
     defaultSkinId: "atelier",
     defaultEnabledPlugins: ["pontis"],
   },
-  jetseal: {
-    key: "jetseal",
-    name: "Jet Seal",
-    title: "Jet Seal — field operations, quote to cash",
+  // The field-services FACE is the vertical, not one customer. Jet Seal is org #1
+  // on it, and its brand arrives per-org (`resolveBrand(org)` + the org's
+  // `defaultSkinId` → the `jss` skin), NOT from this profile — otherwise
+  // contractor #2 inherits a competitor's livery.
+  fieldservices: {
+    key: "fieldservices",
+    name: "Field Services",
+    title: "Field Services — quote to cash for trade contractors",
     description:
       "One place to run a trade contractor — jobs, quotes, crews, and invoicing, from the first call to the paid invoice.",
-    tagline: "Field Services",
-    markSrc: "/jetseal-mark.png",
-    // JSS Black / JSS Green — the closed brand palette (see the `jss` skin).
+    tagline: "Trade Contracting",
+    markSrc: "/fieldservices-mark.png",
     themeColor: "#1a1a1a",
     backgroundColor: "#1a1a1a",
-    agentName: "Jet Seal Agent",
-    wakePhrase: "hey jet seal",
-    wakeWord: "Hey Jet Seal",
+    agentName: "Field Agent",
+    wakePhrase: "hey field",
+    wakeWord: "Hey Field",
     defaultTenantClass: "COMMERCIAL",
     signingMode: "keyless",
     defaultEnabledModules: null,
     defaultEnabledSectors: ["field-services"],
-    defaultSkinId: "jss",
-    // Snow is a plugin (ADR 0003) and lands in Phase 5. Listing a slug whose
-    // plugin isn't composed into the build is ignored at provision time, so this
-    // is safe ahead of that work.
-    defaultEnabledPlugins: ["snow"],
+    // The generic rugged look. A customer overrides per-org — Jet Seal to `jss`.
+    defaultSkinId: "field",
+    // Deliberately empty. Snow (Phase 5, ADR 0003) is common but not universal —
+    // a striping-only contractor should not inherit it. Orgs opt in from
+    // Settings → Plugins, which is what fail-closed enablement is for.
+    defaultEnabledPlugins: [],
   },
 };
